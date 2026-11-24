@@ -238,4 +238,55 @@ describe("AI SDK v3 provider over ACP", () => {
 
     provider.dispose();
   });
+
+  it("prepends rolling context recap once conversation exceeds Amazon's 5-turn server window", async () => {
+    const fakeAlexa = createFakeAlexaClient(["r1", "r2", "r3", "r4", "r5", "r6", "r7"]);
+    const acpApp = createAlexaAcpApp({ alexaClient: fakeAlexa, defaultMode: "passthrough" });
+    const provider = createAlexaAcp({ inProcessApp: acpApp, serverWindowTurns: 5 });
+    const model = provider.languageModel("alexa-shopping");
+    const tools = [
+      {
+        type: "function" as const,
+        name: "write",
+        description: "Write file",
+        inputSchema: { type: "object", properties: { filePath: { type: "string" }, content: { type: "string" } }, required: ["filePath", "content"] },
+      },
+    ];
+
+    const history: Array<
+      | { role: "user"; content: Array<{ type: "text"; text: string }> }
+      | { role: "assistant"; content: Array<{ type: "text"; text: string }> }
+    > = [];
+
+    const userTurns = [
+      "Build Morning Pour coffee shop page",
+      "Add Chemex filters",
+      "Add V60 filters",
+      "Check Melitta prices",
+      "Compare sizes",
+      "Update coffee-shop.html with a budget pick",
+    ];
+
+    for (let i = 0; i < userTurns.length; i++) {
+      history.push({ role: "user", content: [{ type: "text", text: userTurns[i] }] });
+      const res = await model.doGenerate({ prompt: [...history], tools });
+      const reply = res.content.find((c) => c.type === "text");
+      history.push({
+        role: "assistant",
+        content: [{ type: "text", text: reply && reply.type === "text" ? reply.text : "" }],
+      });
+    }
+
+    const calls = (fakeAlexa as unknown as { calls: AlexaPromptOptions[] }).calls;
+    expect(calls).toHaveLength(6);
+    // Turn 5 (index 4, 4 prior user turns) does not yet need rolling recap
+    expect(calls[4].query).not.toContain("Earlier in this chat:");
+    // Turn 6 (index 5, 5 prior user turns) includes recap of rolled-off Turn 1 + re-attaches file format
+    expect(calls[5].query).toContain("Earlier in this chat:");
+    expect(calls[5].query).toContain("Morning Pour");
+    expect(calls[5].query).toContain("Text for FILENAME:");
+    expect(calls[5].threadId).toBe("amzn1.rufus.alexa.thread.fake-1");
+
+    provider.dispose();
+  });
 });

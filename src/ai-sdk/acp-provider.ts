@@ -43,6 +43,16 @@ export interface AlexaAcpProviderOptions {
   cookiesPath?: string;
   /** Optional custom initial tool-bridge prompt template (supports {{tools}}, {{cwd}}, {{dir}}) */
   toolPrompt?: string;
+  /**
+   * Amazon's server-side thread keeps only the last ~6 turns.
+   * Once a conversation exceeds `serverWindowTurns` (default 5), older turns from the host's
+   * prompt history are compacted into a rolling recap header up to `contextRecapChars` (default 320).
+   */
+  serverWindowTurns?: number;
+  /** Max earlier user/assistant messages to include in the rolling recap (default: 16) */
+  maxContextMessages?: number;
+  /** Character budget for the rolling context recap prepended after Amazon's 6-turn window (default: 320) */
+  contextRecapChars?: number;
   /** Optional in-process ACP AgentApp (used for tests without spawning a subprocess) */
   inProcessApp?: acp.AgentApp;
 }
@@ -208,7 +218,19 @@ function buildInitialPrompt(
   return body;
 }
 
-function buildDeltaPrompt(newMessages: LanguageModelV3Message[]): string {
+function buildDeltaPrompt(
+  fullPrompt: LanguageModelV3Prompt,
+  matchedPrefixLen: number,
+  options: {
+    tools: ToolSpec[];
+    cwd: string;
+    toolPrompt?: string;
+    serverWindowTurns: number;
+    maxContextMessages: number;
+    contextRecapChars: number;
+  }
+): string {
+  const newMessages = fullPrompt.slice(matchedPrefixLen);
   const parts: string[] = [];
   for (const msg of newMessages) {
     if (msg.role === "tool") {
@@ -220,7 +242,75 @@ function buildDeltaPrompt(newMessages: LanguageModelV3Message[]): string {
       if (t) parts.push(`Previous assistant turn:\n${t}`);
     }
   }
-  return parts.filter(Boolean).join("\n\n");
+  const deltaBody = parts.filter(Boolean).join("\n\n");
+
+  // Amazon's backend threadId only retains the last ~6 user turns.
+  // Once we have more user turns than `serverWindowTurns`, prepend a compact recap of the
+  // older turns that have rolled off (or are about to roll off) Amazon's server window.
+  const priorMessages = fullPrompt.slice(0, matchedPrefixLen).filter((m) => m.role !== "system");
+  const priorUserCount = priorMessages.filter((m) => m.role === "user").length;
+
+  const prefixSections: string[] = [];
+  if (priorUserCount >= options.serverWindowTurns && options.contextRecapChars > 0) {
+    // Keep the oldest turns that rolled off Amazon's ~5-turn window (bounded by maxContextMessages)
+    const userIndices: number[] = [];
+    priorMessages.forEach((m, idx) => {
+      if (m.role === "user") userIndices.push(idx);
+    });
+    const cutoffUserIdx = Math.max(0, userIndices.length - (options.serverWindowTurns - 1));
+    const rolledOffEnd = userIndices[cutoffUserIdx] ?? priorMessages.length;
+    const rolledOff = priorMessages.slice(0, rolledOffEnd).slice(-options.maxContextMessages);
+
+    const snippets: string[] = [];
+    for (const m of rolledOff) {
+      if (m.role === "user") {
+        const t = renderMessageToText(m).replace(/\s+/g, " ").trim();
+        if (t) snippets.push(`User: "${t.length > 140 ? `${t.slice(0, 137)}...` : t}"`);
+      } else if (m.role === "assistant") {
+        const writtenFiles: string[] = [];
+        for (const p of m.content) {
+          if (p.type === "tool-call" && (p.toolName === "write" || p.toolName === "write_file")) {
+            const inp = p.input as Record<string, unknown> | undefined;
+            const fp = inp?.filePath ?? inp?.path;
+            if (typeof fp === "string") writtenFiles.push(fp.split("/").pop() || fp);
+          }
+        }
+        if (writtenFiles.length > 0) {
+          snippets.push(`Saved ${writtenFiles.join(", ")}`);
+        }
+      }
+    }
+
+    if (snippets.length > 0) {
+      let recap = "Earlier in this chat: ";
+      for (const s of snippets) {
+        const sep = recap.endsWith(": ") ? "" : " | ";
+        if (recap.length + sep.length + s.length > options.contextRecapChars) break;
+        recap += sep + s;
+      }
+      if (recap !== "Earlier in this chat: ") {
+        prefixSections.push(recap);
+      }
+    }
+  }
+
+  // If the file-drafting instruction has rolled off Amazon's window and the new user message
+  // asks for a file, re-attach the compact format reminder.
+  const isUserTurn = newMessages.some((m) => m.role === "user");
+  if (
+    isUserTurn &&
+    options.tools.length > 0 &&
+    priorUserCount >= options.serverWindowTurns &&
+    /\b[A-Za-z0-9_.-]+\.(?:html?|md|json|csv|ts|js|py|txt)\b/i.test(deltaBody)
+  ) {
+    const reminder = buildToolSystemPrefix(options.tools, "", options.cwd, options.toolPrompt);
+    if (reminder) prefixSections.push(reminder);
+  }
+
+  if (prefixSections.length > 0) {
+    return `${prefixSections.join("\n")}\n\n${deltaBody}`;
+  }
+  return deltaBody;
 }
 
 /**
@@ -345,7 +435,14 @@ export class AcpClientBridge {
     if (matchedSession) {
       sessionId = matchedSession.sessionId;
       matchedSession.lastUsedAt = Date.now();
-      queryText = buildDeltaPrompt(params.prompt.slice(matchedPrefixLen));
+      queryText = buildDeltaPrompt(params.prompt, matchedPrefixLen, {
+        tools: params.tools,
+        cwd,
+        toolPrompt: this.options.toolPrompt,
+        serverWindowTurns: this.options.serverWindowTurns ?? 5,
+        maxContextMessages: this.options.maxContextMessages ?? 16,
+        contextRecapChars: this.options.contextRecapChars ?? 400,
+      });
     } else {
       const created = await conn.agent.request("session/new", {
         cwd,
