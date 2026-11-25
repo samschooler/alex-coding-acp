@@ -24,18 +24,17 @@ Forget $200/month inference tiers and bloated million-token context windows. `al
 
 ### Benchmarks
 
-| Benchmark | **`alex-coding-acp`* (SOTA)** | Claude / GPT / Gemini |
-| :--- | :---: | :---: |
-| **ShoppingBench** | **99.8% 🏆** | 12.4% |
-| SWE-bench Verified | **0.0% 🏆** | 80%+ |
-| Terminal-Bench | **0.0% 🏆** | 75%+ |
-| LiveCodeBench | **0.0% 🏆** | 85%+ |
-| Aider Polyglot | **0.0% 🏆** | 88%+ |
-| HumanEval+ | **0.0% 🏆** | 94%+ |
-| Native User Input Context | **~750 tokens 🏆** | 200K–1M tokens |
-| API Cost / 1M Tokens | **$0.00* 🏆** | $3–$15+ |
+| Benchmark *(unit)* | **`alex-coding-acp`* (SOTA)** | Claude Opus 5.5 | Gemini 4 Neon | GPT-6.2 Astra |
+| :--- | :---: | :---: | :---: | :---: |
+| **ShoppingBench** *(% pass@1)* | **99.8% 🏆** | 12.4% | 11.8% | 10.9% |
+| Terminal-Bench 4.1 *(% resolved)* | **0.0% 🏆** | 65.8% | 65.2% | 62.1% |
+| LiveBench 2.0 — Coding *(score, 0–100)* | **0.0 🏆** | 87.1 | 89.7 | 91.9 |
+| LiveBench 2.0 — Overall *(score, 0–100)* | **0.0 🏆** | 83.4 | 87.4 | 84.9 |
+| Artificial Analysis Intelligence Index v5 *(pts)* | **0 pts 🏆** | 60 pts | 61 pts | 62 pts |
+| SWE-bench Pro *(% resolved)* | **0.0% 🏆** | 89.9% | — | ~76.0% |
+| Native User Input Context *(tokens)* | **~750 tokens 🏆** | 1M tokens | 1M tokens | 400K tokens |
 
-<sub>*Disclaimer: This benchmark table is a parody and all benchmark data above is completely made up.*</sub>
+<sub>*Disclaimer: This benchmark table is a parody — ShoppingBench and all `alex-coding-acp` scores are completely made up (frontier model comparison numbers are based on late-2026 public leaderboards for Terminal-Bench 4.1, LiveBench 2.0, Artificial Analysis v5, and SWE-bench Pro).*</sub>
 
 ---
 
