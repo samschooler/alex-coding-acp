@@ -27,13 +27,13 @@ Forget $200/month inference tiers and bloated million-token context windows. `al
 | Benchmark | **`alex-coding-acp`* (SOTA)** | Claude / GPT / Gemini |
 | :--- | :---: | :---: |
 | **ShoppingBench** | **99.8% 🏆** | 12.4% |
-| SWE-bench Verified | 0.0% | 80%+ |
-| Terminal-Bench | 0.0% | 75%+ |
-| LiveCodeBench | 0.0% | 85%+ |
-| Aider Polyglot | 0.0% | 88%+ |
-| HumanEval+ | 0.0% | 94%+ |
-| Native User Input Context | **~750 tokens** *(6 × 500 chars)* | 200K–1M tokens |
-| API Cost / 1M Tokens | **$0.00*** | $3–$15+ |
+| SWE-bench Verified | **0.0% 🏆** | 80%+ |
+| Terminal-Bench | **0.0% 🏆** | 75%+ |
+| LiveCodeBench | **0.0% 🏆** | 85%+ |
+| Aider Polyglot | **0.0% 🏆** | 88%+ |
+| HumanEval+ | **0.0% 🏆** | 94%+ |
+| Native User Input Context | **~750 tokens 🏆** | 200K–1M tokens |
+| API Cost / 1M Tokens | **$0.00* 🏆** | $3–$15+ |
 
 <sub>*Disclaimer: This benchmark table is a parody and all benchmark data above is completely made up.*</sub>
 
