@@ -1,43 +1,85 @@
 # alex-coding-acp
 
-Amazon **Alexa for Shopping** (Rufus) client, **Agent Client Protocol (ACP v1)** server, and **OpenCode / Vercel AI SDK v3** ACP provider.
+![Abstract optimistic representation of alex-coding-acp](./assets/hero.png)
 
-## Architecture
+> **The Ultra-Lean Coding Model You Already Have Access To.***  
+> Plug Alexa straight into **OpenCode**, **BB**, **Zed**, and **Claude Code** as a first-class selectable coding model over the **Agent Client Protocol (ACP v1)** — with native file writes, live reasoning streams, and **$0 per-token API bills**.
 
-- **`src/alexa/`** — Direct Node HTTP/SSE client for Amazon's `/rufus/cl/render` (auto-fetches `anti-csrftoken-a2z` & `impressionsContextKey`) and `/rufus/cl/streaming` (`text/event-stream` with RFC 6902 `JSONPatches` markdown/product-card reconstruction, `interim` thinking stream, `threadId` continuity, and automatic <=500-char chunking).
-- **`src/acp/server.ts`** — Official ACP v1 agent server over stdio (`@agentclientprotocol/sdk`) with three modes:
-  - `code` — exposes built-in workspace coding tools (`read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `bash`) to Alexa.
-  - `passthrough` — streams raw Alexa thoughts & responses over ACP so an outer harness (like OpenCode) executes its own tool suite.
-  - `chat` — direct Alexa for Shopping conversation including structured Amazon product cards.
-- **`src/ai-sdk/acp-provider.ts`** — Native Vercel AI SDK v3 (`ProviderV3` / `LanguageModelV3`) provider for OpenCode (`npm: "file:///.../alex-coding-acp"`). Spawns `alex-coding-acp acp` over stdio ACP, maintains conversation-prefix-to-ACP-session mapping, passes OpenCode's tools via a WAF-safe tool protocol, and streams `reasoning`, `text`, and `tool-call` parts back to OpenCode.
-- **`src/proxy/http-server.ts`** — Optional HTTP proxy (`serve`) exposing OpenAI (`/v1/chat/completions`, `/v1/models`) and Anthropic (`/v1/messages`) APIs backed by the same ACP transport.
+### Why Developers Are Switching to `alex-coding-acp`*
 
-## Usage
+Forget $200/month inference tiers and bloated million-token context windows. `alex-coding-acp` brings a radically focused, zero-API-key coding model straight into your favorite AI coding harness — speaking standard **ACP v1** over stdio and **Vercel AI SDK v3** natively.
+
+### Headline Features
+
+- **Precision ~750-Token Context Window (6 × 500-Char Turns)**  
+  Engineered for maximum signal and zero context rot: **6 messages × 500 characters = 3,000 characters (~750 native user input tokens**, or ~2.5K–3K total tokens including responses). Need longer sessions? Our built-in **rolling context recap** automatically carries earlier turns and written files forward past the 6-message horizon so your momentum never drops.
+- **Multi-Language Code Generation & Direct File Writes***  
+  Writes clean, type-checked **TypeScript** (`.ts`), runnable **Python** (`.py`), structured **JSON** & **CSV** data modules, **Markdown** docs (`.md`), and responsive light/dark **HTML** landing pages (`.html`) directly into your workspace via OpenCode's native `Write` tool.
+- **First-Class Selectable Model in OpenCode & BB**  
+  Ships as a native Vercel AI SDK v3 (`ProviderV3` / `LanguageModelV3`) provider backed by `@agentclientprotocol/sdk` over stdio — select it straight from OpenCode's `/models` picker or BB's provider menu with zero background daemon required.
+- **Real-Time Streaming & Reasoning Traces**  
+  Streams live thinking traces and token-by-token output over SSE + RFC 6902 `JSONPatches` with lossless code-block reconstruction and automatic session reuse across multi-turn tool loops.
+- **Works With Every Harness**  
+  Run as an **OpenCode provider**, a **standalone ACP v1 coding agent** (BB, Zed, Toad), or an **OpenAI + Anthropic HTTP proxy** (`serve` mode for Claude Code via `ANTHROPIC_BASE_URL`).
+
+### Benchmarks
+
+| Benchmark | **`alex-coding-acp`* (SOTA)** | Claude / GPT / Gemini |
+| :--- | :---: | :---: |
+| **ShoppingBench** | **99.8% 🏆** | 12.4% |
+| SWE-bench Verified | 0.0% | 80%+ |
+| Terminal-Bench | 0.0% | 75%+ |
+| LiveCodeBench | 0.0% | 85%+ |
+| Aider Polyglot | 0.0% | 88%+ |
+| HumanEval+ | 0.0% | 94%+ |
+| Native User Input Context | **~750 tokens** *(6 × 500 chars)* | 200K–1M tokens |
+| API Cost / 1M Tokens | **$0.00*** | $3–$15+ |
+
+<sub>*Disclaimer: This benchmark table is a parody and all benchmark data above is completely made up.*</sub>
+
+---
+
+## Quick Start
 
 ```bash
 npm install
 npm run build
 
-# 1. Sign in to Amazon in Chrome and save session cookies (~/.config/alex-coding-acp/cookies.json)
+# 1. Authenticate once via Chrome (saved locally at ~/.config/alex-coding-acp/cookies.json)
 node dist/cli.js login
 
-# 2. Register in OpenCode (~/.config/opencode/opencode.json)
+# 2. Register as a selectable model in OpenCode (~/.config/opencode/opencode.json)
 node dist/cli.js setup-opencode --write
 
-# 3. Verify model appears in OpenCode
+# 3. Verify & start coding*
 opencode models alexa-acp
-opencode run -m alexa-acp/alexa-shopping "Best 65W USB-C GaN chargers under $40?"
+opencode run -m alexa-acp/alexa-shopping \
+  "Create a landing page for a cozy neighborhood coffee shop called Morning Pour with live prices for 3 pour-over coffee filters for coffee-shop.html"
 
-# 4. Run standalone ACP server (used by BB / Zed / Toad)
+# 4. Run standalone ACP v1 server (BB / Zed / Toad)
 node dist/cli.js acp
 
-# 5. Optional: run OpenAI + Anthropic HTTP proxy (e.g. for Claude Code via ANTHROPIC_BASE_URL)
+# 5. Optional: run OpenAI + Anthropic HTTP proxy (Claude Code via ANTHROPIC_BASE_URL)
 node dist/cli.js serve --port 4141
 ```
 
-## Notes on Amazon's API Limits & Guardrails
+## Architecture
 
-1. **500-character per-turn query cap:** `/rufus/cl/streaming` mirrors `#rufus-text-area maxlength="500"` and silently drops longer queries; `AlexaClient` automatically chunks longer messages across turns on the same `threadId`.
-2. **Natural file-drafting & `.html` showcase renderer:** Amazon's output sanitizer strips raw `<...>` HTML tags and Alexa's model refuses explicit script-execution triggers like `RUN_TOOL`. Instead, Alexa reliably drafts file content between `Text for FILENAME:` and `END_TEXT` (supporting `.md`, `.json`, `.csv`, `.ts`, `.py`, etc.), which the ACP provider automatically converts into native OpenCode `write` (or ACP `write_file`) tool calls. For `.html` targets, Alexa outputs a clean JSON product object (`{ title, subtitle, items }`) or Markdown and [html-renderer.ts](./src/tools/html-renderer.ts) renders it locally into a responsive standalone HTML showcase page. The initial prompt template can be customized via `options.toolPrompt` or `ALEXA_TOOL_PROMPT`.
-3. **Server-side 6-turn sliding window:** Amazon's `threadId` retains roughly the last 6 user turns on the server. Once a conversation exceeds 5 user turns, [acp-provider.ts](./src/ai-sdk/acp-provider.ts) automatically prepends a compact rolling recap (`Earlier in this chat: ...`) of older turns from the host's history (configurable via `options.serverWindowTurns`, `options.maxContextMessages`, and `options.contextRecapChars`) and re-attaches the `Text for FILENAME:` format hint when a file is requested.
-4. **Model scope:** Alexa for Shopping's backend model is fine-tuned and system-prompted strictly as an Amazon shopping assistant, so while OpenCode's tool definitions are passed to it and parsed cleanly when emitted, the model itself frequently declines non-shopping / local tool execution requests.
+- **`src/alexa/`** — Direct Node HTTP/SSE client with automatic CSRF refresh, RFC 6902 `JSONPatches` streaming reconstruction, `threadId` continuity, and automatic <=500-char chunking (zero browser needed at runtime).
+- **`src/acp/server.ts`** — Official ACP v1 agent server over stdio (`@agentclientprotocol/sdk`) with `code` (built-in workspace tools), `passthrough` (outer harness executes tools), and `chat` modes.
+- **`src/ai-sdk/acp-provider.ts`** — Native Vercel AI SDK v3 provider for OpenCode. Spawns `alex-coding-acp acp` over stdio ACP, maintains conversation-prefix-to-ACP-session mapping, runs the rolling context recap past the 6-turn window, and streams `reasoning`, `text`, and `tool-call` parts.
+- **`src/tools/protocol.ts`** & **`src/tools/html-renderer.ts`** — Clean multi-file extraction (`Text for FILENAME: ... END_TEXT`), tool-call parsing, and zero-dependency structured-data → responsive HTML page rendering for `.html` outputs.
+- **`src/proxy/http-server.ts`** — Optional OpenAI (`/v1/chat/completions`, `/v1/models`) and Anthropic (`/v1/messages`) HTTP proxy backed by the same ACP transport.
+
+## Context & Tuning Options
+
+Configurable in `opencode.json` under `provider["alexa-acp"].options`:
+
+- **`serverWindowTurns`** (default `5`): Turn threshold after which older messages are compacted into the rolling context recap.
+- **`maxContextMessages`** (default `16`): Max earlier messages scanned for the rolling recap.
+- **`contextRecapChars`** (default `400`): Character budget for the rolling recap header.
+- **`toolPrompt`** (or `ALEXA_TOOL_PROMPT` env var): Custom initial formatting template.
+
+---
+
+<sub>\* **Fine print:** Okay, technically it's backed by Amazon's Alexa for Shopping (Rufus), so tasks have to be shopping-related — e.g. typed product catalogs, price-comparison scripts, deal trackers, or a coffee shop landing page that happens to showcase pour-over coffee filters. Pure non-shopping debugging or arbitrary shell tasks will politely redirect you to Black Friday deals.</sub>
