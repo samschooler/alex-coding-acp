@@ -39,7 +39,22 @@ Forget $200/month inference tiers and bloated million-token context windows. `al
 
 ---
 
-## Quick Start
+## Getting Started (Agent Prompt)
+
+The fastest way to install `alex-coding-acp` is to paste this prompt into your existing coding agent (OpenCode, Claude Code, Codex, Cursor, or BB) and swap `<YOUR_EDITOR>` for **OpenCode**, **BB**, **Zed**, or **Claude Code**:
+
+```text
+Clone https://github.com/samschooler/alex-coding-acp into ~/repo/alex-coding-acp, install dependencies, and run `npm run build`.
+Then run `node dist/cli.js login` so I can sign in via Chrome and save local session cookies (do not commit cookies).
+After login succeeds, configure alex-coding-acp as an ACP coding model/agent in <YOUR_EDITOR>:
+- For OpenCode: run `node dist/cli.js setup-opencode --write` (registers `alexa-acp/alexa-shopping` and `alexa-acp/alexa-shopping-chat` in `~/.config/opencode/opencode.json`), then verify with `opencode models alexa-acp`.
+- For BB: append a custom ACP agent entry (`id: "alex-coding"`, `displayName: "Alexa Coding (ACP)"`, `command: <absolute path to node>`, `args: ["<repo>/dist/cli.js", "acp"]`) to `bb plugin config provider-acp set customAgents` without overwriting existing custom agents, then verify with `bb provider list`.
+- For Zed: add an `agent_servers` entry running `node <repo>/dist/cli.js acp` in Zed's `settings.json`.
+- For Claude Code: start `node dist/cli.js serve --port 4141` and show me the `ANTHROPIC_BASE_URL=http://127.0.0.1:4141` command to launch Claude Code against it.
+Finally, run a quick end-to-end smoke test to confirm streaming and file writes work.
+```
+
+## Manual Quick Start
 
 ```bash
 npm install
